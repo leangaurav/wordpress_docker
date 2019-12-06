@@ -1,0 +1,59 @@
+version: "3.7"
+
+
+services:
+  wordpressdb:
+    image: mysql:latest
+    command: '--default-authentication-plugin=mysql_native_password'
+    volumes:
+       - ./data/db:/var/lib/mysql
+    restart: always
+    expose:
+      - "3306"
+    environment:
+       MYSQL_ROOT_PASSWORD: somewordpress
+       MYSQL_DATABASE: wordpress
+       MYSQL_USER: wordpress
+       MYSQL_PASSWORD: wordpress
+
+  wordpress:
+    container_name: wordpress
+    depends_on:
+      - wordpressdb
+    image: wordpress:5.3.0-php7.1-fpm
+    restart: always
+    volumes:
+      - ./data/wordpress:/var/www/html
+    environment:
+      WORDPRESS_DB_HOST: wordpressdb:3306
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+    ports:
+      - "9000:9000"
+
+  letsencrypt:
+    image: linuxserver/letsencrypt
+    container_name: letsencrypt
+    cap_add:
+      - NET_ADMIN
+    depends_on:
+      - wordpress
+    environment:
+      - PUID=P_ID
+      - PGID=G_ID
+      - TZ=Asia/Kolkata
+      - URL=EXAMPLE.COM
+      - SUBDOMAINS=www,
+      - VALIDATION=http
+      - DNSPLUGIN=cloudflare #optional
+      - DHLEVEL=2048 #optional
+      #EXTRA_DOMAINS 
+    ports:
+      - 443:443
+      - 80:80 #optional
+    restart: unless-stopped
+    volumes:
+      - ./conf/default:/config/nginx/site-confs/default
+      - ./data/wordpress:/var/www/html
+      - ./logs/nginx:/var/log/nginx
