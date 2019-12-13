@@ -45,6 +45,7 @@ services:
       - TZ=Asia/Kolkata
       - URL=EXAMPLE.COM
       - SUBDOMAINS=www,
+      - STAGING=STAGING_VAL
       - VALIDATION=http
       - DNSPLUGIN=cloudflare #optional
       - DHLEVEL=2048 #optional

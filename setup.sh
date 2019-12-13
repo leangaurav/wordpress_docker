@@ -1,4 +1,11 @@
+set -e
+
+echo "Step-1 : Moving old docker-compose.yml to .prev. Creating new!"
+mv  docker-compose.yml docker-compose.yml.prev | true
+cp conf/docker-compose.yml .
+
 DOMAINS=""
+STAGING=false
 
 for i in "$@"
 do
@@ -6,7 +13,7 @@ case $i in
 	-t)
 		STAGING=true
 		;;
-	-p=*)
+	-d=*)
 		DOMAIN="${i#*=}"
 		;;
 	*)
@@ -22,10 +29,9 @@ done
 
 U_ID=`id -u`
 G_ID=`id -g`
-STAGING=false
 
 
-echo "Setting Uid: " $U_ID "\t Gid: " $G_ID
+echo "Step-2: Setting Uid: " $U_ID "\t Gid: " $G_ID
 sed -i "s/P_ID/$U_ID/g" ./docker-compose.yml
 sed -i "s/G_ID/$G_ID/g" ./docker-compose.yml
 
@@ -36,6 +42,7 @@ then
 	echo "Missing Domain(Specify like -p=example.com)"
 	exit 0
 else
+	echo "Step-3 : Updating primary and sub domains"
 	echo " Primary Domain: " $DOMAIN "\n Sub Domains: " $DOMAINS
 	sed -i "s/EXAMPLE.COM/$DOMAIN/g" ./docker-compose.yml
 fi
@@ -51,64 +58,33 @@ fi
 
 
 
-echo "Setting Test status: " $STAGING
+echo "Step-4 : Setting Test status: " $STAGING
 sed -i "s/STAGING_VAL/$STAGING/g" ./docker-compose.yml
 
 
 
-echo "Cleaning any old docker containers (wait 4 sec)"
-sudo docker rm $(docker ps -aq)
-sleep 4
+echo "Step-5 : Checking old ontainers (wait 10 sec)"
+if output=$(docker ps -aq) && [ -z "$output" ]; then
+	echo "No Old Containers found!"
+else
+	echo "Existing running containers found! Cleaning(wait 10 sec)"
+	docker stop $(docker ps -q) | true
+	docker rm $(docker ps -aq) | true
+	sleep 10
+fi
 
+echo "Step-6(Last) : Checking for multi-domain"
 
-
-echo "Starting docker containers(waiting 40 sec)"
-sudo docker-compose up -d
-sleep 40
-
-
-
-
-WP_CONFIG_DATA=$(cat <<EOF
-define('WP_ALLOW_MULTISITE', true);
-define('MULTISITE', true);
-define('SUBDOMAIN_INSTALL', true);
-define('DOMAIN_CURRENT_SITE', "$DOMAIN");
-define('PATH_CURRENT_SITE', '/');
-define('SITE_ID_CURRENT_SITE', 1);
-define('BLOG_ID_CURRENT_SITE', 1);
-EOF
-)
-
-HT_ACCESS_DATA=`cat <<EOF
-# BEGIN WordPress
-<IfModule mod_rewrite.c>
-RewriteEngine On
-RewriteBase /
-RewriteRule ^index\.php$ - [L]
-
-# add a trailing slash to /wp-admin
-RewriteRule ^wp-admin$ wp-admin/ [R=301,L]
-
-RewriteCond %{REQUEST_FILENAME} -f [OR]
-RewriteCond %{REQUEST_FILENAME} -d
-RewriteRule ^ - [L]
-RewriteRule ^(wp-(content|admin|includes).*) $1 [L]
-RewriteRule ^(.*\.php)$ $1 [L]
-RewriteRule . index.php [L]
-</IfModule>
-# END WordPress
-EOF
-`
 
 if [ -z "$DOMAINS" ]
 then
         echo "No Extra domains sepecified\n Complete !!"
 else
-        echo "Extra domains specified. Updating for multisite"
-	sudo echo "$WP_CONFIG_DATA" >> ./data/wordpress/wp-config.php
-	sudo rm -rf ./data/wordpress/.htaccess
-	sudo echo "$HT_ACCESS_DATA" >> ./data/wordpress/.htaccess
-	echo "Restarting docker containers(wait 5 sec)"
-	sudo docker-compose restart
+        echo "Extra domains specified. Generating multisite script: setupMultisite.sh"
+	rm  setupMultisite.sh | true
+	cp conf/setupMultisite.sh .
+	sed -i "s/EXAMPLE.COM/$DOMAIN/g" ./setupMultisite.sh
 fi
+
+
+echo "Complete! now run:   docker-compose up -d"
