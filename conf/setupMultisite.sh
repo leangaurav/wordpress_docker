@@ -38,6 +38,8 @@ sudo head -n -3 ./data/wordpress/wp-config.php > wp-config.php
 sudo echo "$WP_CONFIG_DATA" >> wp-config.php
 sudo tail -n 3 ./data/wordpress/wp-config.php >> wp-config.php
 sudo mv wp-config.php ./data/wordpress/wp-config.php
+sudo chown www-data ./data/wordpress/wp-config.php
 
 sudo echo "$HT_ACCESS_DATA" >> ./data/wordpress/.htaccess
 echo "Now Restart containers using:       docker-compose restart"
+sudo chown www-data ./data/wordpress/.htaccess
